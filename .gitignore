@@ -1,0 +1,31 @@
+# === Java compiled classes ===
+*.class
+
+# === Maven target directory ===
+target/
+
+# === Maven metadata files ===
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+
+# === Logs ===
+*.log
+logs/
+
+# === Environment / local config files ===
+.env
+.env.*
+
+# === OS-specific files ===
+.DS_Store
+Thumbs.db
+
+# === Misc ===
+*.tmp
+*.bak
+*.swp
+
+.idea/
