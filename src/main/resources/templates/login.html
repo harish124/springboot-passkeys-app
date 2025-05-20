@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en" xmlns:th="https://www.thymeleaf.org">
+
+<head th:insert="~{fragments.html :: header}"></head>
+
+<body class="d-flex align-items-center py-4 bg-body-tertiary">
+<main class="form-signin w-100 m-auto">
+    <div class="alert alert-success" role="alert" th:text="${successMessage}" th:if="${successMessage}"></div>
+    <div class="alert alert-danger" role="alert" th:text="${errorMessage}" th:if="${errorMessage}"></div>
+    <div class="alert alert-danger" role="alert" th:text="${param.error}" th:if="${param.error}"></div>
+    <form th:action="@{/login}" method="post" id="login-form">
+        <h1 class="h3 mb-3 fw-normal">Please sign in</h1>
+        <button id="login" class="btn btn-primary w-100 py-2" type="submit">Sign in with passkey</button>
+        <p />
+        <input id="credentialId" name="credentialId" type="hidden" />
+        <input id="loginClientDataJSON" name="clientDataJSON" type="hidden" />
+        <input id="authenticatorData" name="authenticatorData" type="hidden" />
+        <input id="signature" name="signature" type="hidden" />
+        <input id="loginClientExtensions" name="clientExtensions" type="hidden" />
+    </form>
+    <form th:action="@{/signup}" th:object="${userForm}" method="post" id="signup-form" class="signup-form">
+        <p>If you don't have an account, create one now</p>
+        <input id="userHandle" name="userHandle" th:field="*{userHandle}" type="hidden" />
+        <div class="form-floating">
+            <input type="email" class="form-control" id="username" th:field="*{username}" placeholder="name@example.com" required>
+            <label for="username">Email address</label>
+        </div>
+        <button class="btn btn-success w-100 py-2" type="submit">Register a new passkey</button>
+
+        <input id="clientDataJSON" name="clientDataJSON" th:field="*{clientDataJSON}" type="hidden" />
+        <input id="attestationObject" name="attestationObject" th:field="*{attestationObject}" type="hidden" />
+        <input id="clientExtensions" name="clientExtensions" th:field="*{clientExtensions}" type="hidden" />
+    </form>
+</main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Base64URL-ArrayBuffer/1.1.0/main.umd.min.js"
+        integrity="sha512-eOUPAFNjvf5Bf4cyN0um8VXRwLEL4f5orlTmtors/PQkvWa32167uYO8k0TomwPqpewK1FflUU+fTFpbjmeSbQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script>
+    // Availability of `window.PublicKeyCredential` means WebAuthn is usable.
+    if (!window.PublicKeyCredential) {
+        window.alert("WebAuthn not supported by this browser");
+    } else {
+        // Login
+        document.getElementById("login-form").addEventListener("submit", async (e) => {
+            e.preventDefault();
+            try {
+                const options = await fetch("/webauthn/assertion/options");
+                const { rpId, challenge, extensions, timeout } = await options.json();
+
+                let crOptions = {
+                    challenge: base64url.decode(challenge, true),
+                    rpId,
+                    timeout,
+                    userVerification: "preferred",
+                    extensions,
+                };
+
+                const credential = await navigator.credentials.get({
+                    publicKey: crOptions,
+                });
+                console.log("Credential: ", credential);
+
+                document.getElementById("credentialId").value = credential.id;
+                document.getElementById("loginClientDataJSON").value = base64url.encode(credential.response.clientDataJSON);
+                document.getElementById("authenticatorData").value = base64url.encode(credential.response.authenticatorData);
+                document.getElementById("signature").value = base64url.encode(credential.response.signature);
+                document.getElementById("loginClientExtensions").value = JSON.stringify(credential.getClientExtensionResults());
+                document.getElementById("login-form").submit();
+            } catch (error) {
+                console.error("Error:%s, Message:%s", error.name, error.message);
+            }
+        });
+
+        // Registration
+        document.getElementById("signup-form").addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const userHandle = document.getElementById("userHandle").value;
+            const username = document.getElementById("username").value;
+
+            try {
+                const optionsRes = await fetch("/webauthn/attestation/options");
+                const options = await optionsRes.json();
+
+                let ccOptions = {
+                    ...options,
+                    challenge: base64url.decode(options.challenge, true),
+                    user: {
+                        id: base64url.decode(userHandle, true),
+                        name: username,
+                        displayName: username,
+                    },
+                    excludeCredentials: options.excludeCredentials.map((credential) => ({
+                        ...credential,
+                        id: base64url.decode(credential.id, true),
+                    })),
+                    authenticatorSelection: {
+                        requireResidentKey: true,
+                        userVerification: "discouraged",
+                    },
+                };
+
+                const credential = await navigator.credentials.create({
+                    publicKey: ccOptions,
+                });
+
+                console.log("Created credential: ", credential);
+
+                document.getElementById("clientDataJSON").value = base64url.encode(credential.response.clientDataJSON);
+                document.getElementById("attestationObject").value = base64url.encode(credential.response.attestationObject);
+                document.getElementById("clientExtensions").value = JSON.stringify(credential.getClientExtensionResults());
+                document.getElementById("signup-form").submit();
+            } catch (error) {
+                console.error("Error:%s, Message:%s", error.name, error.message);
+            }
+        });
+    }
+</script>
+</body>
+
+</html>
